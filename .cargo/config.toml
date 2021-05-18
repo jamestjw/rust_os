@@ -1,0 +1,11 @@
+[unstable]
+# Build core library for custom compilation target (compiler_builtins is a prerequisite)
+build-std = ["core", "compiler_builtins"]
+# Enable memory-related functions in compiler_builtins library
+build-std-features = ["compiler-builtins-mem"]
+
+[build]
+target = "x86_64-rust_os.json"
+
+[target.'cfg(target_os = "none")']
+runner = "bootimage runner"
