@@ -171,3 +171,30 @@ pub fn _print(args: fmt::Arguments) {
     use core::fmt::Write;
     WRITER.lock().write_fmt(args).unwrap();
 }
+
+// Ensuring that writing to the VGA buffer does not cause
+// a panic
+#[test_case]
+fn test_println_simple() {
+    println!("test_println_simple output");
+}
+
+// Ensuring that writing many lines to the VGA buffer does not
+// cause a panic
+#[test_case]
+fn test_println_many() {
+    for _ in 0..200 {
+        println!("test_println_many output");
+    }
+}
+
+// Ensuring that printed lines really appear on the screen
+#[test_case]
+fn test_println_output() {
+    let test_string = "Test string that fits on a single line.";
+    println!("{}", test_string);
+    for (i, c) in test_string.chars().enumerate() {
+        let screen_char = WRITER.lock().buffer.chars[BUFFER_HEIGHT - 2][i].read();
+        assert_eq!(char::from(screen_char.ascii_character), c);
+    }
+}
