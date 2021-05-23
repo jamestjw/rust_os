@@ -169,7 +169,13 @@ macro_rules! println {
 #[doc(hidden)]
 pub fn _print(args: fmt::Arguments) {
     use core::fmt::Write;
-    WRITER.lock().write_fmt(args).unwrap();
+    use x86_64::instructions::interrupts;
+
+    // Ensure that no interrupts occur while holding the WRITER lock
+    // so that we can safely invoke this function in interrupt handlers
+    interrupts::without_interrupts(|| {
+        WRITER.lock().write_fmt(args).unwrap();
+    });
 }
 
 // Ensuring that writing to the VGA buffer does not cause
@@ -191,10 +197,22 @@ fn test_println_many() {
 // Ensuring that printed lines really appear on the screen
 #[test_case]
 fn test_println_output() {
+    use core::fmt::Write;
+    use x86_64::instructions::interrupts;
+
     let test_string = "Test string that fits on a single line.";
-    println!("{}", test_string);
-    for (i, c) in test_string.chars().enumerate() {
-        let screen_char = WRITER.lock().buffer.chars[BUFFER_HEIGHT - 2][i].read();
-        assert_eq!(char::from(screen_char.ascii_character), c);
-    }
+
+    // Pause interrupts because interrupt handlers might call println!
+    interrupts::without_interrupts(|| {
+        let mut writer = WRITER.lock();
+
+        // Insert a newline before printing the test string as
+        // interrupt handlers may have already written to the output
+        writeln!(writer, "\n{}", test_string).expect("writeln failed!");
+
+        for (i, c) in test_string.chars().enumerate() {
+            let screen_char = writer.buffer.chars[BUFFER_HEIGHT - 2][i].read();
+            assert_eq!(char::from(screen_char.ascii_character), c);
+        }
+    });
 }

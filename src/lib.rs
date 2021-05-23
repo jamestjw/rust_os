@@ -40,7 +40,8 @@ pub fn test_panic_handler(info: &PanicInfo) -> ! {
     serial_println!("[failed]\n");
     serial_println!("Error: {}\n", info);
     exit_qemu(QemuExitCode::Failed);
-    loop {}
+
+    hlt_loop();
 }
 
 /// Entry point for `cargo test`
@@ -49,7 +50,7 @@ pub fn test_panic_handler(info: &PanicInfo) -> ! {
 pub extern "C" fn _start() -> ! {
     init();
     test_main();
-    loop {}
+    hlt_loop();
 }
 
 #[cfg(test)]
@@ -85,4 +86,14 @@ pub fn exit_qemu(exit_code: QemuExitCode) {
 pub fn init() {
     gdt::init();
     interrupts::init_idt();
+    // Set up hardware interrupt controllers
+    unsafe { interrupts::PICS.lock().initialize() };
+    x86_64::instructions::interrupts::enable();
+}
+
+// Halts the CPU until the next interrupt arrives
+pub fn hlt_loop() -> ! {
+    loop {
+        x86_64::instructions::hlt();
+    }
 }
