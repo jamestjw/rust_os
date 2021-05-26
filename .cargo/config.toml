@@ -1,6 +1,6 @@
 [unstable]
 # Build core library for custom compilation target (compiler_builtins is a prerequisite)
-build-std = ["core", "compiler_builtins"]
+build-std = ["core", "compiler_builtins", "alloc"]
 # Enable memory-related functions in compiler_builtins library
 build-std-features = ["compiler-builtins-mem"]
 
