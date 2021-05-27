@@ -1,12 +1,16 @@
 use alloc::alloc::{GlobalAlloc, Layout};
 use core::ptr::null_mut;
-use linked_list_allocator::LockedHeap;
+use fixed_size_block::FixedSizeBlockAllocator;
 use x86_64::{
     structures::paging::{
         mapper::MapToError, FrameAllocator, Mapper, Page, PageTableFlags, Size4KiB,
     },
     VirtAddr,
 };
+
+pub mod bump;
+pub mod fixed_size_block;
+pub mod linked_list;
 
 pub struct Dummy;
 
@@ -24,8 +28,7 @@ unsafe impl GlobalAlloc for Dummy {
 }
 
 #[global_allocator]
-// empty means that the allocator has no backing memory yet
-static ALLOCATOR: LockedHeap = LockedHeap::empty();
+static ALLOCATOR: Locked<FixedSizeBlockAllocator> = Locked::new(FixedSizeBlockAllocator::new());
 
 pub fn init_heap(
     mapper: &mut impl Mapper<Size4KiB>,
@@ -53,4 +56,35 @@ pub fn init_heap(
     }
 
     Ok(())
+}
+
+pub struct Locked<A> {
+    inner: spin::Mutex<A>,
+}
+
+impl<A> Locked<A> {
+    pub const fn new(inner: A) -> Self {
+        Locked {
+            inner: spin::Mutex::new(inner),
+        }
+    }
+
+    pub fn lock(&self) -> spin::MutexGuard<A> {
+        self.inner.lock()
+    }
+}
+
+// Aligns the given `addr` upwards to alignment `align`
+//
+// Requires that `align` is a power of 2
+fn align_up(addr: usize, align: usize) -> usize {
+    // let remainder = addr % align;
+    // if remainder == 0 {
+    //     addr // addr already aligned
+    // } else {
+    //     addr - remainder + align
+    // }
+
+    // More efficient implementation
+    (addr + align - 1) & !(align - 1)
 }
