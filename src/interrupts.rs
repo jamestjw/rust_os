@@ -102,37 +102,15 @@ extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFr
 }
 
 extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: InterruptStackFrame) {
-    use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1};
-    use spin::Mutex;
     use x86_64::instructions::port::Port;
-
-    lazy_static! {
-        // HandleControl allows the mapping of ctrl+[a-z] to Unicode characters,
-        // which we do not allow
-        static ref KEYBOARD: Mutex<Keyboard<layouts::Us104Key, ScancodeSet1>> = Mutex::new(
-            Keyboard::new(layouts::Us104Key, ScancodeSet1, HandleControl::Ignore)
-        );
-    }
-
-    let mut keyboard = KEYBOARD.lock();
 
     // Data port of the PS/2 controller which we
     // use to query the keyboard controller
     let mut port = Port::new(0x60);
     // The scancode is a number that represents the key press/release
     let scancode: u8 = unsafe { port.read() };
-
-    if let Ok(Some(key_event)) = keyboard.add_byte(scancode) {
-        // Translates key event to a char if possible, e.g. translates
-        // a press event of the 'A' key to either a lowercase or uppercase 'A'
-        // depending on whether or not the shift key was pressed.
-        if let Some(key) = keyboard.process_keyevent(key_event) {
-            match key {
-                DecodedKey::Unicode(character) => print!("{}", character),
-                DecodedKey::RawKey(key) => print!("{:?}", key),
-            }
-        }
-    }
+    // Add scancode to the queue to be handled
+    crate::task::keyboard::add_scancode(scancode);
 
     unsafe {
         PICS.lock()

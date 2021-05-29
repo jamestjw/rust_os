@@ -10,10 +10,11 @@
 
 extern crate alloc;
 
-use alloc::{boxed::Box, rc::Rc, vec, vec::Vec};
 use bootloader::{entry_point, BootInfo};
 use core::panic::PanicInfo;
 use rust_os::println;
+use rust_os::task::keyboard;
+use rust_os::task::{executor::Executor, Task};
 
 // Panic handler should never return, we will
 // let it loop infinitely for now
@@ -51,34 +52,20 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
 
     allocator::init_heap(&mut mapper, &mut frame_allocator).expect("heap initialization failed");
 
-    // Allocate a number on the heap
-    let heap_value = Box::new(41);
-    println!("Heap value at {:p}", heap_value);
-
-    // Create a dynamically sized vector
-    let mut vec = Vec::new();
-    for i in 0..500 {
-        vec.push(i);
-    }
-    println!("Vec at {:p}", vec.as_slice());
-
-    // Create reference counter vector (will be freed when count reaches 0)
-    let reference_counted = Rc::new(vec![1, 2, 3]);
-    let cloned_reference = reference_counted.clone();
-    println!(
-        "Current reference count is {}",
-        Rc::strong_count(&cloned_reference)
-    );
-    core::mem::drop(reference_counted);
-    println!(
-        "Reference count is now {}",
-        Rc::strong_count(&cloned_reference)
-    );
-
     #[cfg(test)]
     test_main();
 
-    println!("It did not crash!");
+    let mut executor = Executor::new();
+    executor.spawn(Task::new(example_task()));
+    executor.spawn(Task::new(keyboard::print_keypresses()));
+    executor.run();
+}
 
-    rust_os::hlt_loop();
+async fn async_number() -> u32 {
+    42
+}
+
+async fn example_task() {
+    let number = async_number().await;
+    println!("async_number: {}", number);
 }
